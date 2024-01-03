@@ -28,11 +28,14 @@ fn search(a: &Value, b: &Value, map: &mut HashMap<String, Value>) -> bool {
         (Value::Int(_), Value::Fact(_, _)) => todo!(),
         (Value::Int(_), Value::Str(_)) => false,
         (Value::Int(a), Value::Int(b)) => a == b,
-        (Value::Str(_), Value::Variable(_)) => todo!(),
-        (Value::Int(_), Value::Variable(_)) => todo!(),
+        (_, Value::Variable(_)) => todo!(),
         (Value::Variable(name), rhs) => {
-            map.insert(name.to_owned(), rhs.to_owned());
-            true
+            if let Some(val) = map.get(name) {
+                rhs == val
+            } else {
+                map.insert(name.to_owned(), rhs.to_owned());
+                true
+            }
         }
     }
 }

@@ -1,6 +1,6 @@
 use crate::lexer::Token;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Fact(String, Vec<Value>),
     Str(String),
