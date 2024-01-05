@@ -3,6 +3,7 @@ use crate::lexer::Token;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Fact(String, Vec<Value>),
+    Predicate(String, Vec<Value>, Box<Value>),
     Str(String),
     Int(usize),
     Variable(String),
@@ -50,7 +51,7 @@ impl Parser {
 
     fn parse_expr(&mut self) -> Value {
         if self.scan(|t| t.as_id()) && self.scan_ahead(1, |t| t.as_open_paren()) {
-            self.parse_fact()
+            self.parse_fact_or_predicate()
         } else if self.scan(|t| t.as_str()) {
             self.parse_str()
         } else if self.scan(|t| t.as_int()) {
@@ -77,18 +78,26 @@ impl Parser {
         Value::Int(val)
     }
 
-    fn parse_fact(&mut self) -> Value {
-        let fact_name = self.consume(|t| t.as_id());
+    fn parse_fact_or_predicate(&mut self) -> Value {
+        let name = self.consume(|t| t.as_id());
         self.consume(|t| t.as_open_paren());
         let mut args: Vec<Value> = vec![];
+
         while !self.scan(|t| t.as_close_paren()) {
             args.push(self.parse_expr());
             if !self.scan(|t| t.as_close_paren()) {
                 self.consume(|t| t.as_comma());
             }
         }
+
         self.consume(|t| t.as_close_paren());
-        self.consume(|t| t.as_dot());
-        Value::Fact(fact_name, args)
+        if self.scan(|t| t.as_dot()) {
+            self.consume(|t| t.as_dot());
+            Value::Fact(name, args)
+        } else {
+            self.consume(|t| t.as_back_arrow());
+            let body = self.parse_expr();
+            Value::Predicate(name, args, Box::new(body))
+        }
     }
 }

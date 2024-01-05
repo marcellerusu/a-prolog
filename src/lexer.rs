@@ -8,6 +8,7 @@ pub enum Token {
     Dot,
     OpenParen,
     CloseParen,
+    BackArrow,
 }
 
 impl Token {
@@ -60,6 +61,12 @@ impl Token {
             _ => None,
         }
     }
+    pub fn as_back_arrow(&self) -> Option<()> {
+        match self {
+            Token::BackArrow => Some(()),
+            _ => None,
+        }
+    }
 }
 
 pub fn tokenize(program_string: String) -> Vec<Token> {
@@ -81,6 +88,9 @@ pub fn tokenize(program_string: String) -> Vec<Token> {
         } else if program_string.get(idx..=idx) == Some(",") {
             idx += 1;
             tokens.push(Token::Comma)
+        } else if program_string.get(idx..=idx + 1) == Some(":-") {
+            idx += 2;
+            tokens.push(Token::BackArrow)
         } else if program_string
             .get(idx..=idx)
             .filter(|char| char.chars().next().unwrap().is_numeric())
@@ -136,7 +146,7 @@ pub fn tokenize(program_string: String) -> Vec<Token> {
             for char in program_string
                 .chars()
                 .skip(idx)
-                .take_while(|c| c.is_alphanumeric())
+                .take_while(|c| c.is_alphanumeric() || c == &'_')
             {
                 name += char.to_string().as_str();
             }
