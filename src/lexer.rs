@@ -9,12 +9,27 @@ pub enum Token {
     OpenParen,
     CloseParen,
     BackArrow,
+    OpenSqBrace,
+    CloseSqBrace,
+    Underscore,
 }
 
 impl Token {
     pub fn as_id(&self) -> Option<String> {
         match self {
             Token::Id(name) => Some(name.to_owned()),
+            _ => None,
+        }
+    }
+    pub fn as_open_square_brace(&self) -> Option<()> {
+        match self {
+            Token::OpenSqBrace => Some(()),
+            _ => None,
+        }
+    }
+    pub fn as_close_square_brace(&self) -> Option<()> {
+        match self {
+            Token::CloseSqBrace => Some(()),
             _ => None,
         }
     }
@@ -67,6 +82,12 @@ impl Token {
             _ => None,
         }
     }
+    pub fn as_underscore(&self) -> Option<()> {
+        match self {
+            Token::Underscore => Some(()),
+            _ => None,
+        }
+    }
 }
 
 pub fn tokenize(program_string: String) -> Vec<Token> {
@@ -79,6 +100,9 @@ pub fn tokenize(program_string: String) -> Vec<Token> {
         } else if program_string.get(idx..=idx) == Some("(") {
             idx += 1;
             tokens.push(Token::OpenParen)
+        } else if program_string.get(idx..=idx) == Some("_") {
+            idx += 1;
+            tokens.push(Token::Underscore)
         } else if program_string.get(idx..=idx) == Some(")") {
             idx += 1;
             tokens.push(Token::CloseParen)
@@ -91,6 +115,12 @@ pub fn tokenize(program_string: String) -> Vec<Token> {
         } else if program_string.get(idx..=idx + 1) == Some(":-") {
             idx += 2;
             tokens.push(Token::BackArrow)
+        } else if program_string.get(idx..=idx) == Some("[") {
+            idx += 1;
+            tokens.push(Token::OpenSqBrace)
+        } else if program_string.get(idx..=idx) == Some("]") {
+            idx += 1;
+            tokens.push(Token::CloseSqBrace)
         } else if program_string
             .get(idx..=idx)
             .filter(|char| char.chars().next().unwrap().is_numeric())

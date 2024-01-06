@@ -7,18 +7,14 @@ mod lexer;
 mod parser;
 
 fn query() -> Value {
-    let tokens = lexer::tokenize("thirty_year_old_student(?name).".to_string());
+    let tokens = lexer::tokenize("append([1], [?x], [1, 2]).".to_string());
 
     parser::Parser::new(tokens).parse().first().unwrap().clone()
 }
 
 fn main() {
     let program = "
-    person(\"jack\", 30, \"student\").
-
-    student(?name, ?age) :- person(?name, ?age, \"student\").
-    
-    thirty_year_old_student(?name) :- student(?name, 30).
+    append([?a], [?b], [?a, ?b]).
     "
     .to_string();
 

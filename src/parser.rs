@@ -2,8 +2,9 @@ use crate::lexer::Token;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
-    Fact(String, Vec<Value>),
+    CompoundTerm(String, Vec<Value>),
     Predicate(String, Vec<Value>, Box<Value>),
+    List(Vec<Value>),
     Str(String),
     Int(usize),
     Variable(String),
@@ -58,9 +59,32 @@ impl Parser {
             self.parse_int()
         } else if self.scan(|t| t.as_variable()) {
             self.parse_variable()
+        } else if self.scan(|t| t.as_open_square_brace()) {
+            self.parse_list()
+        } else if self.scan(|t| t.as_underscore()) {
+            self.parse_underscore()
         } else {
             panic!("no expr found")
         }
+    }
+
+    fn parse_underscore(&mut self) -> Value {
+        self.consume(|t| t.as_underscore());
+        panic!("");
+    }
+
+    fn parse_list(&mut self) -> Value {
+        self.consume(|t| t.as_open_square_brace());
+        let mut values: Vec<Value> = vec![];
+        while !self.scan(|t| t.as_close_square_brace()) {
+            values.push(self.parse_expr());
+
+            if !self.scan(|t| t.as_close_square_brace()) {
+                self.consume(|t| t.as_comma());
+            }
+        }
+        self.consume(|t| t.as_close_square_brace());
+        Value::List(values)
     }
 
     fn parse_variable(&mut self) -> Value {
@@ -93,7 +117,7 @@ impl Parser {
         self.consume(|t| t.as_close_paren());
         if self.scan(|t| t.as_dot()) {
             self.consume(|t| t.as_dot());
-            Value::Fact(name, args)
+            Value::CompoundTerm(name, args)
         } else {
             self.consume(|t| t.as_back_arrow());
             let body = self.parse_expr();
