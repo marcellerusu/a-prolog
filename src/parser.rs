@@ -8,6 +8,8 @@ pub enum Value {
     Str(String),
     Int(usize),
     Variable(String),
+    Eq(Box<Value>, Box<Value>),
+    And(Box<Value>, Box<Value>),
 }
 
 pub struct Parser {
@@ -35,7 +37,7 @@ impl Parser {
                 val
             }
             None => {
-                panic!("couldn't find token")
+                panic!("couldn't find token {:?}", self.tokens.get(self.idx..))
             }
         }
     }
@@ -45,12 +47,13 @@ impl Parser {
 
         while self.idx < self.tokens.len() {
             ast.push(self.parse_expr());
+            self.consume(|t| t.as_dot());
         }
 
         ast
     }
 
-    fn parse_expr(&mut self) -> Value {
+    fn parse_single_expr(&mut self) -> Value {
         if self.scan(|t| t.as_id()) && self.scan_ahead(1, |t| t.as_open_paren()) {
             self.parse_fact_or_predicate()
         } else if self.scan(|t| t.as_str()) {
@@ -66,6 +69,32 @@ impl Parser {
         } else {
             panic!("no expr found")
         }
+    }
+
+    fn parse_expr(&mut self) -> Value {
+        let mut expr = self.parse_single_expr();
+
+        expr = if self.scan(|t| t.as_eq()) {
+            self.parse_eq(expr)
+        } else if self.scan(|t| t.as_comma()) {
+            self.parse_and(expr)
+        } else {
+            expr
+        };
+
+        expr
+    }
+
+    fn parse_and(&mut self, left: Value) -> Value {
+        self.consume(|t| t.as_comma());
+        let right = self.parse_expr();
+        Value::And(Box::new(left), Box::new(right))
+    }
+
+    fn parse_eq(&mut self, left: Value) -> Value {
+        self.consume(|t| t.as_eq());
+        let right = self.parse_expr();
+        Value::Eq(Box::new(left), Box::new(right))
     }
 
     fn parse_underscore(&mut self) -> Value {
@@ -108,20 +137,19 @@ impl Parser {
         let mut args: Vec<Value> = vec![];
 
         while !self.scan(|t| t.as_close_paren()) {
-            args.push(self.parse_expr());
+            args.push(self.parse_single_expr());
             if !self.scan(|t| t.as_close_paren()) {
                 self.consume(|t| t.as_comma());
             }
         }
 
         self.consume(|t| t.as_close_paren());
-        if self.scan(|t| t.as_dot()) {
-            self.consume(|t| t.as_dot());
-            Value::CompoundTerm(name, args)
-        } else {
+        if self.scan(|t| t.as_back_arrow()) {
             self.consume(|t| t.as_back_arrow());
             let body = self.parse_expr();
             Value::Predicate(name, args, Box::new(body))
+        } else {
+            Value::CompoundTerm(name, args)
         }
     }
 }

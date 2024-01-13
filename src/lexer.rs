@@ -12,6 +12,7 @@ pub enum Token {
     OpenSqBrace,
     CloseSqBrace,
     Underscore,
+    Eq,
 }
 
 impl Token {
@@ -21,6 +22,13 @@ impl Token {
             _ => None,
         }
     }
+    pub fn as_eq(&self) -> Option<()> {
+        match self {
+            Token::Eq => Some(()),
+            _ => None,
+        }
+    }
+
     pub fn as_open_square_brace(&self) -> Option<()> {
         match self {
             Token::OpenSqBrace => Some(()),
@@ -106,6 +114,9 @@ pub fn tokenize(program_string: String) -> Vec<Token> {
         } else if program_string.get(idx..=idx) == Some(")") {
             idx += 1;
             tokens.push(Token::CloseParen)
+        } else if program_string.get(idx..=idx) == Some("=") {
+            idx += 1;
+            tokens.push(Token::Eq)
         } else if program_string.get(idx..=idx) == Some(".") {
             idx += 1;
             tokens.push(Token::Dot)

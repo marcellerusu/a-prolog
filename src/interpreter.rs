@@ -25,19 +25,42 @@ impl DB {
                     let mut map: HashMap<String, Value> = env.clone();
                     if self.unify(query_node, fact, &mut map) {
                         let mut vars: HashMap<String, Value> = HashMap::new();
-                        DB::get_vars(query_node, &mut map, &mut vars);
+                        DB::get_vars(query_node, &map, &mut vars);
+                        println!("{:?}", query_node);
                         for (key, val) in vars.clone().iter() {
                             let actual_val = DB::instantiate(val, &map);
                             vars.insert(key.clone(), actual_val.clone());
                             env.insert(key.clone(), actual_val.clone());
                         }
-                        results.push(vars);
+
+                        if !vars.is_empty() {
+                            results.push(vars);
+                        }
                     }
                 }
 
                 results
             }
-            _ => panic!(),
+            Value::And(left, right) => {
+                let left_results = self.query(left, env);
+                if left_results.is_empty() {
+                    return vec![];
+                }
+
+                [left_results, self.query(right, env)].concat()
+            }
+            Value::Eq(left, right) => match left.as_ref() {
+                Value::Variable(name) => {
+                    let right = DB::instantiate(right, env);
+                    env.insert(name.clone(), right.clone());
+                    vec![HashMap::from([(name.clone(), right)])]
+                }
+                _ => {
+                    assert!(DB::instantiate(left, env) == DB::instantiate(right, env));
+                    panic!();
+                }
+            },
+            _ => panic!("unexpected query_node {:?}", query_node),
         }
     }
 
@@ -52,6 +75,17 @@ impl DB {
             Value::Int(_) => (),
             Value::Variable(name) => {
                 out.insert(name.clone(), env.get(name).unwrap().clone());
+            }
+            Value::Eq(left, right) => match left.as_ref() {
+                Value::Variable(name) => {
+                    println!("{:?} => {:?}", name, right);
+                    out.insert(name.clone(), right.as_ref().to_owned());
+                }
+                _ => panic!(),
+            },
+            Value::And(left, right) => {
+                DB::get_vars(left, env, out);
+                DB::get_vars(right, env, out);
             }
         }
     }
@@ -69,6 +103,14 @@ impl DB {
             Value::Str(_) => value.to_owned(),
             Value::Int(_) => value.to_owned(),
             Value::Variable(name) => map.get(name).unwrap().to_owned(),
+            Value::Eq(left, right) => Value::Eq(
+                Box::new(DB::instantiate(left, map)),
+                Box::new(DB::instantiate(right, map)),
+            ),
+            Value::And(left, right) => Value::And(
+                Box::new(DB::instantiate(left, map)),
+                Box::new(DB::instantiate(right, map)),
+            ),
         }
     }
 
@@ -142,7 +184,7 @@ impl DB {
                 }
 
                 let mut scope = map.clone();
-                if self.query(pred_body, &mut scope).len() > 0 {
+                if !self.query(pred_body, &mut scope).is_empty() {
                     for name in query_args.iter().filter_map(|n| match n {
                         Value::Variable(name) => Some(name),
                         _ => None,
@@ -170,6 +212,14 @@ impl DB {
             (Value::List(_), Value::Int(_)) => todo!(),
             (Value::Str(_), Value::List(_)) => todo!(),
             (Value::Int(_), Value::List(_)) => todo!(),
+            (Value::Eq(_, _), _) => todo!(),
+            (query, Value::Eq(left, right)) => {
+                todo!()
+            }
+            (Value::And(_, _), _) => todo!(),
+            (query, Value::And(left, right)) => {
+                self.unify(query, left, map) && self.unify(query, right, map)
+            }
         }
     }
 }
