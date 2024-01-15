@@ -16,17 +16,15 @@ impl DB {
         &self,
         query_node: &Value,
         env: &mut HashMap<String, Value>,
-    ) -> Vec<HashMap<String, Value>> {
+    ) -> Option<HashMap<String, Value>> {
         match query_node {
             Value::CompoundTerm(_, _) => {
-                let mut results: Vec<HashMap<String, Value>> = vec![];
-
                 for fact in self.facts.iter() {
                     let mut map: HashMap<String, Value> = env.clone();
                     if self.unify(query_node, fact, &mut map) {
                         let mut vars: HashMap<String, Value> = HashMap::new();
                         DB::get_vars(query_node, &map, &mut vars);
-                        println!("{:?}", query_node);
+                        // println!("{:?}", query_node);
                         for (key, val) in vars.clone().iter() {
                             let actual_val = DB::instantiate(val, &map);
                             vars.insert(key.clone(), actual_val.clone());
@@ -34,26 +32,23 @@ impl DB {
                         }
 
                         if !vars.is_empty() {
-                            results.push(vars);
+                            return Some(vars);
                         }
                     }
                 }
-
-                results
+                None
             }
             Value::And(left, right) => {
-                let left_results = self.query(left, env);
-                if left_results.is_empty() {
-                    return vec![];
-                }
-
-                [left_results, self.query(right, env)].concat()
+                let mut left_vars = self.query(left, env)?;
+                let right_vars = self.query(right, env)?;
+                left_vars.extend(right_vars);
+                Some(left_vars)
             }
             Value::Eq(left, right) => match left.as_ref() {
                 Value::Variable(name) => {
                     let right = DB::instantiate(right, env);
                     env.insert(name.clone(), right.clone());
-                    vec![HashMap::from([(name.clone(), right)])]
+                    Some(HashMap::from([(name.clone(), right)]))
                 }
                 _ => {
                     assert!(DB::instantiate(left, env) == DB::instantiate(right, env));
@@ -78,7 +73,7 @@ impl DB {
             }
             Value::Eq(left, right) => match left.as_ref() {
                 Value::Variable(name) => {
-                    println!("{:?} => {:?}", name, right);
+                    // println!("{:?} => {:?}", name, right);
                     out.insert(name.clone(), right.as_ref().to_owned());
                 }
                 _ => panic!(),
@@ -184,7 +179,7 @@ impl DB {
                 }
 
                 let mut scope = map.clone();
-                if !self.query(pred_body, &mut scope).is_empty() {
+                if self.query(pred_body, &mut scope).is_some() {
                     for name in query_args.iter().filter_map(|n| match n {
                         Value::Variable(name) => Some(name),
                         _ => None,
@@ -213,7 +208,7 @@ impl DB {
             (Value::Str(_), Value::List(_)) => todo!(),
             (Value::Int(_), Value::List(_)) => todo!(),
             (Value::Eq(_, _), _) => todo!(),
-            (query, Value::Eq(left, right)) => {
+            (_query, Value::Eq(_left, _right)) => {
                 todo!()
             }
             (Value::And(_, _), _) => todo!(),
