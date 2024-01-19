@@ -10,6 +10,10 @@ pub enum Value {
     Variable(String),
     Eq(Box<Value>, Box<Value>),
     And(Box<Value>, Box<Value>),
+    GreaterThan(Box<Value>, Box<Value>),
+    LessThan(Box<Value>, Box<Value>),
+    GreaterThanEqual(Box<Value>, Box<Value>),
+    LessThanEqual(Box<Value>, Box<Value>),
 }
 
 pub struct Parser {
@@ -67,33 +71,63 @@ impl Parser {
         } else if self.scan(|t| t.as_underscore()) {
             self.parse_underscore()
         } else {
-            panic!("no expr found")
+            panic!("no expr found {:?}", self.tokens.get(self.idx..))
         }
     }
 
     fn parse_expr(&mut self) -> Value {
-        let mut expr = self.parse_single_expr();
+        let expr = self.parse_single_expr();
 
-        expr = if self.scan(|t| t.as_eq()) {
+        if self.scan(|t| t.as_eq()) {
             self.parse_eq(expr)
         } else if self.scan(|t| t.as_comma()) {
             self.parse_and(expr)
+        } else if self.scan(|t| t.as_greater_than()) {
+            self.parse_greater_than(expr)
+        } else if self.scan(|t| t.as_less_than()) {
+            self.parse_less_than(expr)
+        } else if self.scan(|t| t.as_greater_than_equal()) {
+            self.parse_greater_than_equal(expr)
+        } else if self.scan(|t| t.as_less_than_equal()) {
+            self.parse_less_than_equal(expr)
         } else {
             expr
-        };
+        }
+    }
 
-        expr
+    fn parse_less_than_equal(&mut self, left: Value) -> Value {
+        self.consume(|t| t.as_less_than_equal());
+        let right = self.parse_single_expr();
+        Value::LessThanEqual(Box::new(left), Box::new(right))
+    }
+
+    fn parse_greater_than_equal(&mut self, left: Value) -> Value {
+        self.consume(|t| t.as_greater_than_equal());
+        let right = self.parse_single_expr();
+        Value::GreaterThanEqual(Box::new(left), Box::new(right))
+    }
+
+    fn parse_less_than(&mut self, left: Value) -> Value {
+        self.consume(|t| t.as_less_than());
+        let right = self.parse_single_expr();
+        Value::LessThan(Box::new(left), Box::new(right))
+    }
+
+    fn parse_greater_than(&mut self, left: Value) -> Value {
+        self.consume(|t| t.as_greater_than());
+        let right = self.parse_single_expr();
+        Value::GreaterThan(Box::new(left), Box::new(right))
     }
 
     fn parse_and(&mut self, left: Value) -> Value {
         self.consume(|t| t.as_comma());
-        let right = self.parse_expr();
+        let right = self.parse_single_expr();
         Value::And(Box::new(left), Box::new(right))
     }
 
     fn parse_eq(&mut self, left: Value) -> Value {
         self.consume(|t| t.as_eq());
-        let right = self.parse_expr();
+        let right = self.parse_single_expr();
         Value::Eq(Box::new(left), Box::new(right))
     }
 

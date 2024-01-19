@@ -7,23 +7,19 @@ mod lexer;
 mod parser;
 
 fn query() -> Value {
-    let tokens = lexer::tokenize("some_query(?name).".to_string());
+    let tokens = lexer::tokenize("pos(?y).".to_string());
 
     parser::Parser::new(tokens).parse().first().unwrap().clone()
 }
 
 fn main() {
-    let program = "
-    user(\"marcelle\", 26).
-    some_query(?name) :- ?name = \"marcelle\".
-    "
-    .to_string();
+    let program = "pos(?x) :- ?x <= 3.".to_string();
 
     let tokens = lexer::tokenize(program);
     // println!("{:?}", tokens);
 
     let facts = parser::Parser::new(tokens).parse();
-    //println!("{:?}", facts);
+    // println!("{:?}", facts);
 
     let db = interpreter::DB::new(facts);
 

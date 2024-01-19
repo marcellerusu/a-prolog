@@ -17,46 +17,24 @@ impl DB {
         query_node: &Value,
         env: &mut HashMap<String, Value>,
     ) -> Option<HashMap<String, Value>> {
-        match query_node {
-            Value::CompoundTerm(_, _) => {
-                for fact in self.facts.iter() {
-                    let mut map: HashMap<String, Value> = env.clone();
-                    if self.unify(query_node, fact, &mut map) {
-                        let mut vars: HashMap<String, Value> = HashMap::new();
-                        DB::get_vars(query_node, &map, &mut vars);
-                        // println!("{:?}", query_node);
-                        for (key, val) in vars.clone().iter() {
-                            let actual_val = DB::instantiate(val, &map);
-                            vars.insert(key.clone(), actual_val.clone());
-                            env.insert(key.clone(), actual_val.clone());
-                        }
+        assert!(matches!(query_node, Value::CompoundTerm(_, _)));
 
-                        if !vars.is_empty() {
-                            return Some(vars);
-                        }
-                    }
+        for fact in self.facts.iter() {
+            let mut map: HashMap<String, Value> = env.clone();
+            if self.unify(query_node, fact, &mut map) {
+                let mut vars: HashMap<String, Value> = HashMap::new();
+                DB::get_vars(query_node, &map, &mut vars);
+                for (key, val) in vars.clone().iter() {
+                    let actual_val = DB::instantiate(val, &map);
+                    vars.insert(key.clone(), actual_val.clone());
+                    env.insert(key.clone(), actual_val.clone());
                 }
-                None
+
+                return Some(vars);
             }
-            Value::And(left, right) => {
-                let mut left_vars = self.query(left, env)?;
-                let right_vars = self.query(right, env)?;
-                left_vars.extend(right_vars);
-                Some(left_vars)
-            }
-            Value::Eq(left, right) => match left.as_ref() {
-                Value::Variable(name) => {
-                    let right = DB::instantiate(right, env);
-                    env.insert(name.clone(), right.clone());
-                    Some(HashMap::from([(name.clone(), right)]))
-                }
-                _ => {
-                    assert!(DB::instantiate(left, env) == DB::instantiate(right, env));
-                    panic!();
-                }
-            },
-            _ => panic!("unexpected query_node {:?}", query_node),
         }
+
+        None
     }
 
     fn get_vars(query: &Value, env: &HashMap<String, Value>, out: &mut HashMap<String, Value>) {
@@ -82,6 +60,22 @@ impl DB {
                 DB::get_vars(left, env, out);
                 DB::get_vars(right, env, out);
             }
+            Value::LessThan(left, right) => {
+                DB::get_vars(left, env, out);
+                DB::get_vars(right, env, out);
+            }
+            Value::LessThanEqual(left, right) => {
+                DB::get_vars(left, env, out);
+                DB::get_vars(right, env, out);
+            }
+            Value::GreaterThan(left, right) => {
+                DB::get_vars(left, env, out);
+                DB::get_vars(right, env, out);
+            }
+            Value::GreaterThanEqual(left, right) => {
+                DB::get_vars(left, env, out);
+                DB::get_vars(right, env, out);
+            }
         }
     }
 
@@ -103,6 +97,22 @@ impl DB {
                 Box::new(DB::instantiate(right, map)),
             ),
             Value::And(left, right) => Value::And(
+                Box::new(DB::instantiate(left, map)),
+                Box::new(DB::instantiate(right, map)),
+            ),
+            Value::LessThan(left, right) => Value::LessThan(
+                Box::new(DB::instantiate(left, map)),
+                Box::new(DB::instantiate(right, map)),
+            ),
+            Value::LessThanEqual(left, right) => Value::LessThanEqual(
+                Box::new(DB::instantiate(left, map)),
+                Box::new(DB::instantiate(right, map)),
+            ),
+            Value::GreaterThan(left, right) => Value::GreaterThan(
+                Box::new(DB::instantiate(left, map)),
+                Box::new(DB::instantiate(right, map)),
+            ),
+            Value::GreaterThanEqual(left, right) => Value::GreaterThanEqual(
                 Box::new(DB::instantiate(left, map)),
                 Box::new(DB::instantiate(right, map)),
             ),
@@ -179,16 +189,167 @@ impl DB {
                 }
 
                 let mut scope = map.clone();
-                if self.query(pred_body, &mut scope).is_some() {
-                    for name in query_args.iter().filter_map(|n| match n {
-                        Value::Variable(name) => Some(name),
-                        _ => None,
-                    }) {
-                        map.insert(name.clone(), scope.get(name).unwrap().clone());
+                match pred_body.as_ref() {
+                    Value::CompoundTerm(_, _) => {
+                        if self.query(pred_body, &mut scope).is_some() {
+                            for name in query_args.iter().filter_map(|n| match n {
+                                Value::Variable(name) => Some(name),
+                                _ => None,
+                            }) {
+                                map.insert(name.clone(), scope.get(name).unwrap().clone());
+                            }
+                            true
+                        } else {
+                            false
+                        }
                     }
-                    true
-                } else {
-                    false
+                    Value::LessThan(left, right) => {
+                        match (left.as_ref(), right.as_ref()) {
+                            (Value::Variable(_), Value::Variable(_)) => {
+                                panic!("can't compare variables")
+                            }
+                            (Value::Int(left), Value::Int(right)) => left < right,
+                            (Value::Variable(name), Value::Int(right)) => {
+                                if let Some(value) = scope.get(name) {
+                                    if let Value::Int(left) = value {
+                                        left < right
+                                    } else {
+                                        panic!("var not int");
+                                    }
+                                } else {
+                                    // TODO: use random number generator
+                                    map.insert(name.clone(), Value::Int(right - 1));
+                                    true
+                                }
+                            }
+                            (Value::Int(left), Value::Variable(name)) => {
+                                if let Some(value) = scope.get(name) {
+                                    if let Value::Int(right) = value {
+                                        left < right
+                                    } else {
+                                        panic!("var not int");
+                                    }
+                                } else {
+                                    // TODO: use random number generator
+                                    scope.insert(name.clone(), Value::Int(left + 1));
+                                    true
+                                }
+                            }
+                            _ => panic!("unknown"),
+                        }
+                    }
+                    Value::Predicate(_, _, _) => todo!(),
+                    Value::List(_) => todo!(),
+                    Value::Str(_) => todo!(),
+                    Value::Int(_) => todo!(),
+                    Value::Variable(_) => todo!(),
+                    Value::Eq(_, _) => todo!(),
+                    Value::And(_, _) => todo!(),
+                    Value::GreaterThan(left, right) => {
+                        match (left.as_ref(), right.as_ref()) {
+                            (Value::Variable(_), Value::Variable(_)) => {
+                                panic!("can't compare variables")
+                            }
+                            (Value::Int(left), Value::Int(right)) => left > right,
+                            (Value::Variable(name), Value::Int(right)) => {
+                                if let Some(value) = scope.get(name) {
+                                    if let Value::Int(left) = value {
+                                        left > right
+                                    } else {
+                                        panic!("var not int");
+                                    }
+                                } else {
+                                    // TODO: use random number generator
+                                    map.insert(name.clone(), Value::Int(right + 1));
+                                    true
+                                }
+                            }
+                            (Value::Int(left), Value::Variable(name)) => {
+                                if let Some(value) = scope.get(name) {
+                                    if let Value::Int(right) = value {
+                                        left > right
+                                    } else {
+                                        panic!("var not int");
+                                    }
+                                } else {
+                                    // TODO: use random number generator
+                                    scope.insert(name.clone(), Value::Int(left - 1));
+                                    true
+                                }
+                            }
+                            _ => panic!("unknown"),
+                        }
+                    }
+                    Value::GreaterThanEqual(left, right) => {
+                        match (left.as_ref(), right.as_ref()) {
+                            (Value::Variable(_), Value::Variable(_)) => {
+                                panic!("can't compare variables")
+                            }
+                            (Value::Int(left), Value::Int(right)) => left >= right,
+                            (Value::Variable(name), Value::Int(right)) => {
+                                if let Some(value) = scope.get(name) {
+                                    if let Value::Int(left) = value {
+                                        left >= right
+                                    } else {
+                                        panic!("var not int");
+                                    }
+                                } else {
+                                    // TODO: use random number generator
+                                    map.insert(name.clone(), Value::Int(*right));
+                                    true
+                                }
+                            }
+                            (Value::Int(left), Value::Variable(name)) => {
+                                if let Some(value) = scope.get(name) {
+                                    if let Value::Int(right) = value {
+                                        left >= right
+                                    } else {
+                                        panic!("var not int");
+                                    }
+                                } else {
+                                    // TODO: use random number generator
+                                    scope.insert(name.clone(), Value::Int(*left));
+                                    true
+                                }
+                            }
+                            _ => panic!("unknown"),
+                        }
+                    }
+                    Value::LessThanEqual(left, right) => {
+                        match (left.as_ref(), right.as_ref()) {
+                            (Value::Variable(_), Value::Variable(_)) => {
+                                panic!("can't compare variables")
+                            }
+                            (Value::Int(left), Value::Int(right)) => left <= right,
+                            (Value::Variable(name), Value::Int(right)) => {
+                                if let Some(value) = scope.get(name) {
+                                    if let Value::Int(left) = value {
+                                        left <= right
+                                    } else {
+                                        panic!("var not int");
+                                    }
+                                } else {
+                                    // TODO: use random number generator
+                                    map.insert(name.clone(), Value::Int(*right));
+                                    true
+                                }
+                            }
+                            (Value::Int(left), Value::Variable(name)) => {
+                                if let Some(value) = scope.get(name) {
+                                    if let Value::Int(right) = value {
+                                        left <= right
+                                    } else {
+                                        panic!("var not int");
+                                    }
+                                } else {
+                                    // TODO: use random number generator
+                                    scope.insert(name.clone(), Value::Int(*left));
+                                    true
+                                }
+                            }
+                            _ => panic!("unknown"),
+                        }
+                    }
                 }
             }
 
@@ -215,6 +376,14 @@ impl DB {
             (query, Value::And(left, right)) => {
                 self.unify(query, left, map) && self.unify(query, right, map)
             }
+            (Value::List(_), _) => todo!(),
+            (Value::Str(_), _) => todo!(),
+            (Value::Int(_), _) => todo!(),
+            (Value::GreaterThan(_, _), _) => todo!(),
+            (Value::LessThan(_, _), _) => todo!(),
+            (Value::GreaterThanEqual(_, _), _) => todo!(),
+            (Value::LessThanEqual(_, _), _) => todo!(),
+            (Value::CompoundTerm(_, _), _) => todo!(),
         }
     }
 }

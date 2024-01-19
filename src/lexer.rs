@@ -13,6 +13,10 @@ pub enum Token {
     CloseSqBrace,
     Underscore,
     Eq,
+    GreaterThan,
+    LessThan,
+    GreaterThanEqual,
+    LessThanEqual,
 }
 
 impl Token {
@@ -28,7 +32,30 @@ impl Token {
             _ => None,
         }
     }
-
+    pub fn as_greater_than(&self) -> Option<()> {
+        match self {
+            Token::GreaterThan => Some(()),
+            _ => None,
+        }
+    }
+    pub fn as_less_than(&self) -> Option<()> {
+        match self {
+            Token::LessThan => Some(()),
+            _ => None,
+        }
+    }
+    pub fn as_greater_than_equal(&self) -> Option<()> {
+        match self {
+            Token::GreaterThanEqual => Some(()),
+            _ => None,
+        }
+    }
+    pub fn as_less_than_equal(&self) -> Option<()> {
+        match self {
+            Token::LessThanEqual => Some(()),
+            _ => None,
+        }
+    }
     pub fn as_open_square_brace(&self) -> Option<()> {
         match self {
             Token::OpenSqBrace => Some(()),
@@ -132,6 +159,18 @@ pub fn tokenize(program_string: String) -> Vec<Token> {
         } else if program_string.get(idx..=idx) == Some("]") {
             idx += 1;
             tokens.push(Token::CloseSqBrace)
+        } else if program_string.get(idx..=idx + 1) == Some(">=") {
+            idx += 2;
+            tokens.push(Token::GreaterThanEqual)
+        } else if program_string.get(idx..=idx + 1) == Some("<=") {
+            idx += 2;
+            tokens.push(Token::LessThanEqual)
+        } else if program_string.get(idx..=idx) == Some(">") {
+            idx += 1;
+            tokens.push(Token::GreaterThan)
+        } else if program_string.get(idx..=idx) == Some("<") {
+            idx += 1;
+            tokens.push(Token::LessThan)
         } else if program_string
             .get(idx..=idx)
             .filter(|char| char.chars().next().unwrap().is_numeric())
